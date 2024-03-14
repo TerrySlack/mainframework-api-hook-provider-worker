@@ -66,11 +66,9 @@ export const ApiWorkerProvider = ({ children }: Provider) => {
       if (task) {
         //Get the callback to pass information back
         const { callback } = task;
-        //Make a copy of the queue
-        const newTaskQueue = { ...taskQueue };
 
         //delete the task from the queue
-        delete newTaskQueue[id];
+        delete taskQueue[id];
 
         //Pass the data back to the callback
         callback(data, id);
