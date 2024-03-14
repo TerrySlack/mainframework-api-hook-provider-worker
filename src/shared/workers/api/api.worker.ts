@@ -162,6 +162,13 @@ onmessage = (event: MessageEvent) => {
     id,
   } = event.data;
 
+  //Let's return data if it already exists.  Then any new data will be posted when a request is complete.
+  const subject = storeSubjects[id];
+  if (subject) {
+    const { value } = subject;
+    postMessage({ id, value });
+  }
+
   switch (type.toLocaleUpperCase()) {
     case "POST":
       postDataAndUpdatePartOfStore(id, url, payload);
