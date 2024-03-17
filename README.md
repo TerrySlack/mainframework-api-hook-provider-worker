@@ -1,9 +1,9 @@
-# create an npm package
+# A React package, that creates an api worker, provider and hook.  Move your api's off of the main thread.
 
 ## Installation:
 
-npm install package-name
-yarn pacakge-name
+npm i @mainframework/api-reqpuest-provider-worker-hook
+yarn @mainframework/api-reqpuest-provider-worker-hook
 
 ## urls
 [npm-url]: https://www.npmjs.com/package/@mainframework/api-reqpuest-provider-worker-hook
