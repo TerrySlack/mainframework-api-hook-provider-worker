@@ -1,4 +1,4 @@
-# A React package, that creates an api worker, provider and hook.  Move your api's off of the main thread.
+# A React package, that creates an api worker, provider and hook. Move your api's off of the main thread.
 
 ## Installation:
 
@@ -6,9 +6,8 @@ npm i @mainframework/api-reqpuest-provider-worker-hook
 yarn @mainframework/api-reqpuest-provider-worker-hook
 
 ## urls
+
 [npm-url]: https://www.npmjs.com/package/@mainframework/api-reqpuest-provider-worker-hook
-
-
 
 ## Usage :
 
@@ -31,6 +30,7 @@ export const App = () => (
 
 In a component, where you need to make a request, use the useApiWorker hook for each request.
 You can use multiple instances of the hook, and make: get, post, patch and delete reqeusts
+Note: credentials can be added to the config object. It defaults to "include" if not added.
 
 ```JS | TS
 import { useEffect } from "react";
