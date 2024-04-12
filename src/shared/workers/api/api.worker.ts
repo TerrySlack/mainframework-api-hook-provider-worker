@@ -105,6 +105,7 @@ const handleFetchRequestAndUpdateStore = async (
   method: string,
   data?: unknown,
   headers?: object,
+  credentials?: "include" | "same-origin" | "omit",
 ) => {
   initializeStoreWithId(id);
 
@@ -113,6 +114,7 @@ const handleFetchRequestAndUpdateStore = async (
       method: method.toLocaleUpperCase(),
       headers: { "Content-Type": "application/json", ...headers },
       body: data ? JSON.stringify(data) : undefined,
+      credentials: credentials ?? "include",
     });
 
     if (!response.ok) {
@@ -136,23 +138,45 @@ const handleFetchRequestAndUpdateStore = async (
 };
 
 // Function to make POST request and update part of the store
-const postDataAndUpdatePartOfStore = (id: string, url: string, postData: unknown, headers?: object) => {
-  return handleFetchRequestAndUpdateStore(id, url, "POST", postData, headers);
+const postDataAndUpdatePartOfStore = (
+  id: string,
+  url: string,
+  postData: unknown,
+  headers?: object,
+  credentials?: "include" | "same-origin" | "omit",
+) => {
+  return handleFetchRequestAndUpdateStore(id, url, "POST", postData, headers, credentials);
 };
 
 // Function to make GET request and update part of the store
-const fetchDataAndUpdatePartOfStore = (id: string, url: string, headers?: object) => {
-  return handleFetchRequestAndUpdateStore(id, url, "GET", undefined, headers);
+const fetchDataAndUpdatePartOfStore = (
+  id: string,
+  url: string,
+  headers?: object,
+  credentials?: "include" | "same-origin" | "omit",
+) => {
+  return handleFetchRequestAndUpdateStore(id, url, "GET", undefined, headers, credentials);
 };
 
 // Function to make PATCH request and update part of the store
-const patchDataAndUpdatePartOfStore = (id: string, url: string, patchData: unknown, headers?: object) => {
-  return handleFetchRequestAndUpdateStore(id, url, "PATCH", patchData, headers);
+const patchDataAndUpdatePartOfStore = (
+  id: string,
+  url: string,
+  patchData: unknown,
+  headers?: object,
+  credentials?: "include" | "same-origin" | "omit",
+) => {
+  return handleFetchRequestAndUpdateStore(id, url, "PATCH", patchData, headers, credentials);
 };
 
 // Function to make DELETE request and update part of the store
-const deleteDataAndUpdatePartOfStore = (id: string, url: string, headers?: object) => {
-  return handleFetchRequestAndUpdateStore(id, url, "DELETE", undefined, headers);
+const deleteDataAndUpdatePartOfStore = (
+  id: string,
+  url: string,
+  headers?: object,
+  credentials?: "include" | "same-origin" | "omit",
+) => {
+  return handleFetchRequestAndUpdateStore(id, url, "DELETE", undefined, headers, credentials);
 };
 
 // Listen for messages from the main thread
