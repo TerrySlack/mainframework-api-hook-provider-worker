@@ -1,23 +1,29 @@
-import { useCallback, useRef, useState } from "react";
 import { useTaskQueue } from "../providers/ApiWorkerProvider";
+import { useCallback, useRef, useState } from "react";
 
 /*
   This hook is like useState.  If you want to re-use it, you need to declare it.  It can't be created once and re-used
 */
 
-export interface UseApiworker {
-  data: unknown;
-  makeRequest: () => void;
+export interface RequestConfig {
+  url: string;
+  method: string;
+  mode?: "cors" | "no-cors";
+  body?: unknown;
+  headers?: object;
+  credentials?: "include" | "same-origin" | "omit";
 }
 
-export const useApiWorker = <T>(requestObject: T): [T, () => void] => {
+type DataOrPromise<T> = T | Promise<T>;
+// Example usage:
+export const useApiWorker = <T>(
+  requestObject: RequestConfig,
+  returnPromise: boolean = false,
+): [DataOrPromise<T> | undefined, () => void] => {
   const { addToQueue } = useTaskQueue();
   const [data, setData] = useState<any>(undefined);
-
   //Generate the id once
-  const uuidRef = useRef<string>(self.crypto.randomUUID());
-
-  //const makeRequest:Dispatch<SetStateAction<T>> = useCallback(() => {
+  const uuidRef = useRef<string>(window.crypto.randomUUID());
   const makeRequest = useCallback(() => {
     /*
       Note: randomUUID is significantly faster than libraries like uuid or nanoid.  Google it.
@@ -26,5 +32,12 @@ export const useApiWorker = <T>(requestObject: T): [T, () => void] => {
     */
     addToQueue(setData, uuidRef.current, requestObject);
   }, [requestObject, addToQueue]);
-  return [data, makeRequest];
+
+  const returnedType = returnPromise
+    ? new Promise((resolve) => {
+        resolve(data);
+      })
+    : data;
+
+  return [returnedType, makeRequest];
 };
