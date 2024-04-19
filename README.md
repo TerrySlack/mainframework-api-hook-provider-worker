@@ -92,18 +92,20 @@ export const App = () => (
   useEffect(() => {
     catRequest();
     todosRequest();
-    postsRequest();
+    //Because true was passed as the last parameter where the post call was made, a promise is returned, when postRequest() is called.
+    //Types
+    const promise = postsRequest();
+    if (promise instanceof Promise) {
+      promise.then((data) => {
+        if (data) {
+          setPostData(data);
+        }
+      });
+
+      //NOTE:  this won't work  postsRequest().then(...)  This will throw a typesscript error.
+    }
   }, []);
 
-  useEffect(() => {
-    if (typeof posts !== "undefined") {
-      if (posts instanceof Promise) {
-        posts.then((data) => {
-          if (data) setPostData(data);
-        });
-      } else setPostData(posts);
-    }
-  }, [posts]);
   return (
     <div>
       {todos && (
