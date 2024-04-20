@@ -14,12 +14,11 @@ export interface RequestConfig {
   credentials?: "include" | "same-origin" | "omit";
 }
 
-type DataOrPromise<T> = T | Promise<T>;
 // Example usage:
 export const useApiWorker = <T>(
   requestObject: RequestConfig,
   returnPromise: boolean = false,
-): [DataOrPromise<T> | undefined, (() => void) | (() => Promise<unknown>)] => {
+): [T | undefined, (() => void) | (() => Promise<unknown>)] => {
   const { addToQueue } = useTaskQueue();
   const [data, setData] = useState<any>(undefined);
 
