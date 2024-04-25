@@ -146,7 +146,8 @@ const requestAndUpdateStore = async (
 // Listen for messages from the main thread
 onmessage = (event: MessageEvent) => {
   const {
-    data: { url, method, body, headers, credentials, mode },
+    data,
+    //data: { url, method, body, headers, credentials, mode },
     id,
   } = event.data;
 
@@ -156,6 +157,8 @@ onmessage = (event: MessageEvent) => {
     const { value } = subject;
     postMessage({ id, value });
   }
-  //Fetch new datav
-  requestAndUpdateStore(id, { url, method, body, headers, credentials, mode });
+  //Fetch new data, if a data object was passed in
+  if (data) {
+    requestAndUpdateStore(id, data);
+  }
 };

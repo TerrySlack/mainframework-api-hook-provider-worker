@@ -44,7 +44,7 @@ const TaskQueueContext = createContext<QueueContextType>({
   addToQueue: (
     _: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
     _id: string | number,
-    _data: unknown,
+    _data?: unknown,
   ) => {
     throw new Error("addToQueue must be implemented");
   },
