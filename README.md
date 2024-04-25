@@ -1,4 +1,4 @@
-# A React package, that creates an api worker, provider and hook. Move your api's off of the main thread.
+# A React package, that creates an api worker, provider, hook and store. Move your api calls and store off of the main thread and into a web worker
 
 ## Installation:
 
@@ -45,12 +45,17 @@ interface RequestConfig {
 
 In a component, where you need to make a request, use the useApiWorker hook for each request.
 You can use multiple instances of the hook, and make: get, post, patch and delete reqeusts
-Note: Review the interface. If you want to use cors, you need to had credentials, and the mode. They are set to undefined by default.
-Also, the left side of the returne array from useApiWorker, it's either data, or a promise. See below for an example of how to use both.
-If you want a promise returned, you set the second paramter passed to the useApiWorker hook to true. Note: This is not the promise from
-the api request, just a new promise, with the data returned from the api request.  
+Note: Review the interface. If you want to use cors, you need to pass credentials, which is set to undefined by default.
+Also, the right side method, in the returned array from useApiWorker, it's either data, or a promise.
+
+If you want a promise returned, you set the second parameter passed to the useApiWorker hook to true. Note: This is not the promise from
+the api request, just a new promise, with the data returned from the api request.
+
 See the post example on how to do this and use
 the promise, in the bottom most useEffect
+
+A user must enter a cacheName when using the hook. Similar to other stores, this will be used to store data in the cache, from an api request, and will also
+allow the data to be retrieved elsewhere in the app, if a request object is not passed into the worker
 
 ```JS | TS
 import { useEffect } from "react";
@@ -59,7 +64,7 @@ import { useApiWorker } from "@mainframework/api-reqpuest-provider-worker-hook";
 export const App = () => (
   //Store data for the post request
  const [postData, setPostData] = useState<unknown>();
-  const [todos, todosRequest] = useApiWorker({
+  const [todos, todosRequest] = useApiWorker("todos", {
     method: "Get",
     url: "https://jsonplaceholder.typicode.com/todos/1",
     headers: {
@@ -68,12 +73,12 @@ export const App = () => (
     },
   });
 
-  const [cats, catRequest] = useApiWorker({
+  const [cats, catRequest] = useApiWorker("cats", {
     method: "Get",
     url: "https://api.thecatapi.com/v1/images/search?limit=10",
   });
 
-  const [posts, postsRequest] = useApiWorker(
+  const [posts, postsRequest] = useApiWorker("posts",
     {
       method: "Post",
       url: "https://jsonplaceholder.typicode.com/posts",
@@ -106,6 +111,8 @@ export const App = () => (
     }
   }, []);
 
+
+
   return (
     <div>
       {todos && (
@@ -131,4 +138,16 @@ export const App = () => (
     </div>
   );
 );
+
+//Some component, used somewhere else...
+const SomeOtherComponent = ()=>{
+    const [cats] = useApiWorker("cats"); //<--This will just retrieve the data from the store, in the worker
+
+  return cats && (
+        <div>
+          <span>Cats</span>
+          <div>{JSON.stringify(cats)}</div>
+        </div>
+      )
+}
 ```
