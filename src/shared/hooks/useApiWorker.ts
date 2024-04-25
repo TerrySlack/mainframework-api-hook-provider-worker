@@ -14,16 +14,20 @@ export interface RequestConfig {
   credentials?: "include" | "same-origin" | "omit";
 }
 
+/*
+  Force the user to add a query name or cache name.
+
+
+*/
+
 // Example usage:
 export const useApiWorker = <T>(
   requestObject: RequestConfig,
+  cacheName: string,
   returnPromise: boolean = false,
 ): [T | undefined, (() => void) | (() => Promise<unknown>)] => {
   const { addToQueue } = useTaskQueue();
   const [data, setData] = useState<any>(undefined);
-
-  //Generate the id once
-  const uuidRef = useRef<string>(window.crypto.randomUUID());
 
   const makeRequest = useCallback(
     (resolve?: (data: unknown) => void) => {
@@ -36,7 +40,7 @@ export const useApiWorker = <T>(
       resolve, will return the data from the api call to the calling function.
     */
 
-      addToQueue(resolve ? resolve : setData, uuidRef.current, requestObject);
+      addToQueue(resolve ? resolve : setData, cacheName, requestObject);
     },
     [requestObject, addToQueue],
   );
