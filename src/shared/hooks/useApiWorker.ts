@@ -1,5 +1,5 @@
 import { useTaskQueue } from "../providers/ApiWorkerProvider";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 /*
   This hook is like useState.  If you want to re-use it, you need to declare it.  It can't be created once and re-used
@@ -22,8 +22,8 @@ export interface RequestConfig {
 
 // Example usage:
 export const useApiWorker = <T>(
-  requestObject: RequestConfig,
   cacheName: string,
+  requestObject?: RequestConfig,
   returnPromise: boolean = false,
 ): [T | undefined, (() => void) | (() => Promise<unknown>)] => {
   const { addToQueue } = useTaskQueue();
