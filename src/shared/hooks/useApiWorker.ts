@@ -44,5 +44,10 @@ export const useApiWorker = <T>(
         })
     : makeRequest;
 
+  if (!requestObject) {
+    //Fire off request if requestObject is undefined
+    request();
+  }
+
   return [data, request as (() => void) | (() => Promise<unknown>)];
 };
