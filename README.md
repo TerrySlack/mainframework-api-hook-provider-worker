@@ -1,5 +1,7 @@
 # A React package, that creates an api worker, provider, hook and store. Move your api calls and store off of the main thread and into a web worker
 
+## Note: There are breaking changes from version 1.16. The changes were major enough to increment by a minor version. See below on the tweaks needed to use the package.
+
 ## Installation:
 
 npm i @mainframework/api-reqpuest-provider-worker-hook
