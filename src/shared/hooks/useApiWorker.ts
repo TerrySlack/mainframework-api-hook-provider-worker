@@ -14,12 +14,6 @@ export interface RequestConfig {
   credentials?: "include" | "same-origin" | "omit";
 }
 
-/*
-  Force the user to add a query name or cache name.
-
-
-*/
-
 // Example usage:
 export const useApiWorker = <T>(
   cacheName: string,
@@ -32,17 +26,15 @@ export const useApiWorker = <T>(
   const makeRequest = useCallback(
     (resolve?: (data: unknown) => void) => {
       /*
-      Note: randomUUID is significantly faster than libraries like uuid or nanoid.  Google it.
-
       we add this unique id, in order to keep track of data returned from the worker, and return it to the proper hook instance that called it.
 
-      resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
-      resolve, will return the data from the api call to the calling function.
+      Resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
+      Resolve, will return the data from the api call to the calling function.
     */
 
       addToQueue(resolve ? resolve : setData, cacheName, requestObject);
     },
-    [requestObject, addToQueue],
+    [cacheName, requestObject, addToQueue],
   );
 
   const request = returnPromise

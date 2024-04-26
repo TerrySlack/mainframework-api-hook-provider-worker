@@ -155,7 +155,7 @@ onmessage = (event: MessageEvent) => {
   const subject = storeSubjects[id];
   if (subject) {
     const { value } = subject;
-    postMessage({ id, value });
+    postMessage({ id, data: value });
   }
   //Fetch new data, if a data object was passed in
   if (data) {

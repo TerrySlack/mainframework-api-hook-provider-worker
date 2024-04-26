@@ -67,11 +67,11 @@ export const ApiWorkerProvider = ({ children }: Provider) => {
         //Get the callback to pass information back
         const { callback } = task;
 
-        //delete the task from the queue
-        delete taskQueue[id];
-
         //Pass the data back to the callback
         callback(data, id);
+
+        //delete the task from the queue
+        delete taskQueue[id];
       }
     };
   }
