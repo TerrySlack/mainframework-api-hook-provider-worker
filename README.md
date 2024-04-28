@@ -1,13 +1,13 @@
-# A React package, that creates an api worker, provider, hook and store. Move your api calls and store off of the main thread and into a web worker
+### A React package, that creates an api worker, provider, hook and store. Move your api calls and store off of the main thread and into a web worker
 
-## Note: Version 1.1.1 is deprecated. Please review these notes to upgrade and user version 2.0.1
+### Note: Version 1.x is deprecated. Please review these notes to upgrade
 
-## Installation:
+### Installation:
 
 npm i @mainframework/api-reqpuest-provider-worker-hook
 yarn @mainframework/api-reqpuest-provider-worker-hook
 
-## Usage
+### Usage
 
 ### App.tsx
 
