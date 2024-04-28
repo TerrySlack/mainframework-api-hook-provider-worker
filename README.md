@@ -1,19 +1,15 @@
 # A React package, that creates an api worker, provider, hook and store. Move your api calls and store off of the main thread and into a web worker
 
-## Note: There are breaking changes from version 1.16. The changes were major enough to increment by a minor version. See below on the tweaks needed to use the package.
+## Note: Version 1.1.1 is deprecated. Please review these notes to upgrade and user version 2.0.1
 
 ## Installation:
 
 npm i @mainframework/api-reqpuest-provider-worker-hook
 yarn @mainframework/api-reqpuest-provider-worker-hook
 
-## urls
+## Usage
 
-[npm-url]: https://www.npmjs.com/package/@mainframework/api-reqpuest-provider-worker-hook
-
-## Usage :
-
-## App.tsx
+### App.tsx
 
 Wrap your application with the ApiWorkerProvider
 
@@ -28,11 +24,12 @@ export const App = () => (
 );
 ```
 
-## making a request
+### making a request
 
-## Request Type
-
+Requests are made by passing in a request object.  
 Here's the typing for a request object to pass to the hook
+This object is optional. If it's not passed in, then any existing data within the store
+will be passed back.
 
 ```JS | TS
 interface RequestConfig {
@@ -43,6 +40,27 @@ interface RequestConfig {
   headers?: object;
   credentials?: "include" | "same-origin" | "omit" | undefined;
 }
+```
+
+There is also a required queryConfig object.
+It can be used to just fetch
+
+```JS | TS
+interface Config {
+  cacheName: string | number; //This is used to store data in the store within the webworker
+  runOnce?: boolean; //Only run the query once Remove the task from the queue as I'm doing now.
+  runAuto?: boolean; //Run the query, without having to use the returned function
+}
+```
+
+To just pull data from the cache, pass in the queryConfig with the cacheName property
+
+```JS | TS
+const [cats] = useApiWorker({
+  queryConfig: {
+    cacheName: "cats",
+  },
+});
 ```
 
 In a component, where you need to make a request, use the useApiWorker hook for each request.
@@ -57,7 +75,30 @@ See the post example on how to do this and use
 the promise, in the bottom most useEffect
 
 A user must enter a cacheName when using the hook. Similar to other stores, this will be used to store data in the cache, from an api request, and will also
-allow the data to be retrieved elsewhere in the app, if a request object is not passed into the worker
+allow the data to be retrieved elsewhere in the app, if a request object is not passed into the
+worker
+
+Note: using the returned function, lets you lazily request your data. If you want the request to
+be automatically made,add the property runAuto:true and it will be fired off by the hook.
+Look at the todos requests, in the examples below for configuration. Note, there is no
+request for Todos in the useEffect now.
+
+```JS | TS
+{
+    method: "Get",
+    url: "https://jsonplaceholder.typicode.com/todos/1",
+    headers: {
+      "x-api-key":
+        "live_YedloihKi9ObVaF7LovnmMzpe6PYkvT6NpZhRupWl0Z6VDi9WWTpHk6zqlsaqi7z",
+    },
+    queryConfig: {
+      cacheName: "todos",
+      runAuto:true //<-- By setting this to true, you don't need to use
+    },
+  }
+```
+
+### Examples
 
 ```JS | TS
 import { useEffect } from "react";
@@ -66,6 +107,7 @@ import { useApiWorker } from "@mainframework/api-reqpuest-provider-worker-hook";
 export const App = () => (
   //Store data for the post request
  const [postData, setPostData] = useState<unknown>();
+
   const [todos, todosRequest] = useApiWorker("todos", {
     method: "Get",
     url: "https://jsonplaceholder.typicode.com/todos/1",
@@ -73,12 +115,22 @@ export const App = () => (
       "x-api-key":
         "live_YedloihKi9ObVaF7LovnmMzpe6PYkvT6NpZhRupWl0Z6VDi9WWTpHk6zqlsaqi7z",
     },
+    queryConfig: {
+      cacheName: "todos",
+      runAuto:true //<-- By setting this to true, you don't need to use
+    },
   });
 
-  const [cats, catRequest] = useApiWorker("cats", {
-    method: "Get",
-    url: "https://api.thecatapi.com/v1/images/search?limit=10",
+  const [cats, catRequest] = useApiWorker({
+    requestConfig: {
+      method: "get",
+      url: "https://api.thecatapi.com/v1/images/search?limit=10",
+    },
+    queryConfig: {
+      cacheName: "cats",
+    },
   });
+
 
   const [posts, postsRequest] = useApiWorker("posts",
     {
@@ -93,24 +145,20 @@ export const App = () => (
         "Content-type": "application/json; charset=UTF-8",
       },
     },
-    true //<--By Adding true, a promise is returned, instead of the data.
+    queryConfig: {
+      cacheName: "posts",
+    },
+    returnPromise: true //<--A promise is returned, instead of the data.
   );
 
   useEffect(() => {
     catRequest();
-    todosRequest();
-    //Because true was passed as the last parameter where the post call was made, a promise is returned, when postRequest() is called.
-    //Types
-    const promise = postsRequest();
-    if (promise instanceof Promise) {
-      promise.then((data) => {
+    //Invoking postsRequest, returns a promise, with the data in it.
+    postsRequest().then((data) => {
         if (data) {
           setPostData(data);
         }
       });
-
-      //NOTE:  this won't work  postsRequest().then(...)  This will throw a typesscript error.
-    }
   }, []);
 
 
@@ -140,8 +188,11 @@ export const App = () => (
     </div>
   );
 );
+```
 
-//Some component, used somewhere else...
+### Some component, used somewhere else, that just requires data, without a request
+
+```JS | TS
 const SomeOtherComponent = ()=>{
     const [cats] = useApiWorker("cats"); //<--This will just retrieve the data from the store, in the worker
 

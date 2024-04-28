@@ -1,3 +1,5 @@
+import { StoreSubjects, WorkerConfig } from "../../types/types";
+
 const isEqual = (a: unknown, b: unknown): boolean => {
   if (typeof a !== typeof b) {
     return false; // Types are different
@@ -48,25 +50,15 @@ const isEqual = (a: unknown, b: unknown): boolean => {
   return true; // All keys and their values are equal
 };
 
-interface StoreSubject {
-  value: unknown;
-  subscribers: ((data: unknown) => void)[];
-  next: (data: unknown) => void;
-  subscribe: (subscriber: (data: unknown) => void) => () => void;
-}
-
-interface StoreSubjects {
-  [id: string | number]: StoreSubject;
-}
-
 // Simulated partial store
 const storeSubjects: StoreSubjects = {};
 
 // Function to initialize store for a specific key if not already initialized1
-const initializeStoreWithId = (id: string) => {
+const initializeStoreWithId = (id: string | number) => {
   if (!storeSubjects[id]) {
     //Following the observer pattern.
     const observable = {
+      runOnce: false,
       value: {},
       subscribers: [],
       next: (data: unknown) => {
@@ -98,21 +90,18 @@ const initializeStoreWithId = (id: string) => {
   }
 };
 
-interface RequestConfig {
-  url: string;
-  method: "get" | "post" | "patch" | "delete";
-  mode?: "cors" | "no-cors" | undefined;
-  body?: unknown;
-  headers?: object;
-  credentials?: "include" | "same-origin" | "omit" | undefined;
-}
-
-// Common function to handle fetch requests and update store
-const requestAndUpdateStore = async (
-  id: string,
-  { url, method, body, headers, credentials = undefined, mode = undefined }: RequestConfig,
-) => {
-  initializeStoreWithId(id);
+const requestAndUpdateStore = async ({
+  url,
+  method,
+  body,
+  headers,
+  credentials = undefined,
+  mode = undefined,
+  cacheName,
+  runOnce = false,
+}: WorkerConfig) => {
+  //Add an entry to the store if it's not present
+  initializeStoreWithId(cacheName);
 
   try {
     const response = await fetch(url, {
@@ -130,35 +119,38 @@ const requestAndUpdateStore = async (
     const responseData = await response.json();
 
     //Get the subject
-    const { value, next } = storeSubjects[id];
-    //const currentData = subject.value;
+    const subject = storeSubjects[cacheName];
 
-    // Compare new data with current data
-    if (!isEqual(responseData, value)) {
+    //set runOnce to ensure the query is only ever run once :)
+    if (runOnce) {
+      subject.runOnce = runOnce;
+    }
+
+    // Compare new data with current data.  If it's different, then update the subject, which will trigger a post back to the main thread
+    if (!isEqual(responseData, subject.value)) {
       //Add the data
-      next(responseData);
+      subject.next(responseData);
     }
   } catch (error: unknown) {
-    postMessage({ id, error: (error as Error).message });
+    postMessage({ cacheName, error: (error as Error).message });
   }
 };
 
 // Listen for messages from the main thread
 onmessage = (event: MessageEvent) => {
-  const {
-    data,
-    //data: { url, method, body, headers, credentials, mode },
-    id,
-  } = event.data;
+  const { data } = event.data;
+  const id = data.cacheName;
 
   //Let's return data if it already exists.  Then any new data will be posted when a request is complete.
   const subject = storeSubjects[id];
+
+  //For some reason TS wants me to coerce subject to a storesubject.  Despite knowing that StoreSubjects is a StoreSubject array
   if (subject) {
-    const { value } = subject;
-    postMessage({ id, data: value });
+    postMessage({ id, data: subject.value });
   }
+
   //Fetch new data, if a data object was passed in
-  if (data) {
-    requestAndUpdateStore(id, data);
+  if (!subject || (subject && !subject.runOnce && data?.method)) {
+    requestAndUpdateStore(data);
   }
 };

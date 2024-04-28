@@ -1,40 +1,35 @@
 import { useTaskQueue } from "../providers/ApiWorkerProvider";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { QueryConfig } from "../types/types";
 
-/*
-  This hook is like useState.  If you want to re-use it, you need to declare it.  It can't be created once and re-used
-*/
-
-export interface RequestConfig {
-  url: string;
-  method: string;
-  mode?: "cors" | "no-cors";
-  body?: unknown;
-  headers?: object;
-  credentials?: "include" | "same-origin" | "omit";
-}
-
-// Example usage:
-export const useApiWorker = <T>(
-  cacheName: string,
-  requestObject?: RequestConfig,
-  returnPromise: boolean = false,
-): [T | undefined, (() => void) | (() => Promise<unknown>)] => {
+export const useApiWorker = <T>({
+  requestConfig,
+  queryConfig,
+  returnPromise,
+}: QueryConfig): [T | undefined, () => T extends Promise<unknown> ? T : void] => {
   const { addToQueue } = useTaskQueue();
   const [data, setData] = useState<any>(undefined);
+  const lastRequestRequestDate = useRef<Date>(new Date());
 
   const makeRequest = useCallback(
     (resolve?: (data: unknown) => void) => {
-      /*
-      we add this unique id, in order to keep track of data returned from the worker, and return it to the proper hook instance that called it.
-
+      /*     
       Resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
       Resolve, will return the data from the api call to the calling function.
     */
-
-      addToQueue(resolve ? resolve : setData, cacheName, requestObject);
+      //Compare the current time, with the last time.  If it's >= 2000 ms, then addToQueue
+      const currentDate = new Date();
+      if (
+        !data ||
+        currentDate.getTime() - lastRequestRequestDate.current.getTime() >= 2000
+        //If makeRequest is called repeatedly, from re-rendering, we can avoid it by only making calls if it's been 2 seconds, since the last call.
+      ) {
+        //Update lastRequestRequestDate
+        lastRequestRequestDate.current = new Date();
+        addToQueue(resolve ? resolve : setData, queryConfig, requestConfig);
+      }
     },
-    [cacheName, requestObject, addToQueue],
+    [queryConfig, requestConfig, addToQueue],
   );
 
   const request = returnPromise
@@ -44,10 +39,11 @@ export const useApiWorker = <T>(
         })
     : makeRequest;
 
-  if (!requestObject) {
+  //If there is no request object it could be a request for data from the cache.  If runAuto is used, it means the app is not using the lazy function
+  if (!requestConfig || queryConfig.runAuto) {
     //Fire off request if requestObject is undefined
     request();
   }
 
-  return [data, request as (() => void) | (() => Promise<unknown>)];
+  return [data, request as () => T extends Promise<unknown> ? T : void];
 };
