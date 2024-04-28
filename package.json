@@ -1,6 +1,6 @@
 {
   "name": "@mainframework/api-reqpuest-provider-worker-hook",
-  "version": "3.0.0",
+  "version": "2.0.0",
   "description": "Package to handle api requests with a hook, provider and web worker",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
