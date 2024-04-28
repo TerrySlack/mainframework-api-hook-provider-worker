@@ -194,7 +194,11 @@ export const App = () => (
 
 ```JS | TS
 const SomeOtherComponent = ()=>{
-    const [cats] = useApiWorker("cats"); //<--This will just retrieve the data from the store, in the worker
+  const [cats] = useApiWorker({
+    queryConfig: {
+      cacheName: "cats",
+    },
+  }); //<--This will just retrieve the data from the store, in the worker
 
   return cats && (
         <div>
