@@ -15,9 +15,9 @@ export const useApiWorker = <T>({
   const makeRequest = useCallback(
     (resolve?: (data: unknown) => void) => {
       /*     
-      Resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
-      Resolve, will return the data from the api call to the calling function.
-    */
+        Resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
+        Resolve, will return the data from the api call to the calling function.
+      */
       //This will stop the request from running.  Good for when a condition is met and then the query can be run or not
       if (queryConfig && typeof queryConfig?.run === "boolean" && !queryConfig?.run) {
         return;
@@ -38,7 +38,7 @@ export const useApiWorker = <T>({
         addToQueue(resolve ? resolve : setData, queryConfig, requestConfig);
       }
     },
-    [queryConfig, requestConfig, addToQueue],
+    [data, queryConfig, requestConfig, addToQueue],
   );
 
   const request = returnPromise

@@ -3,7 +3,7 @@ import { StoreSubject, StoreSubjects, WorkerConfig } from "../../types/types";
 const objectType = (value: unknown) => {
   if (typeof value === "undefined") {
     return "undefined";
-  } else if (typeof value === undefined) {
+  } else if (value === null) {
     return "null";
   } else if (Array.isArray(value)) return "array";
   else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
@@ -183,7 +183,7 @@ onmessage = (event: MessageEvent) => {
   const { data: config } = event.data;
   const { id, cacheName, mergeExising, runOnce, data } = config;
 
-  //Let's return data if it already exists.  Then any new data will be posted when a request is complete.
+  //Let's return data if it already exists. Then any new data will be posted when a request is complete.
   const subject = storeSubjects[cacheName] ?? initializeStoreWithId(cacheName, runOnce);
 
   //Create a subscriber function for the subject

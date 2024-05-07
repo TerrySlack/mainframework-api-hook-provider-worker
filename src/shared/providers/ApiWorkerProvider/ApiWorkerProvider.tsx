@@ -1,24 +1,11 @@
 /*eslint-disable */
 import { Dispatch, SetStateAction, createContext, useContext } from "react";
-import {
-  Config,
-  ConfigWithId,
-  QueueContextType,
-  RequestConfig,
-  TaskQueue,
-  WorkerProvider,
-} from "../../types/types";
+import { Config, ConfigWithId, QueueContextType, RequestConfig, TaskQueue, WorkerProvider } from "../../types/types";
 
 // Create the worker once outside the hook
-const apiWorker = new Worker(
-  new URL("../../workers/api/api.worker", import.meta.url)
-);
+const apiWorker = new Worker(new URL("../../workers/api/api.worker", import.meta.url));
 
-const addToQueue = (
-  callback: (data: unknown) => void,
-  config: ConfigWithId,
-  requestQueryConfig?: RequestConfig
-) => {
+const addToQueue = (callback: (data: unknown) => void, config: ConfigWithId, requestQueryConfig?: RequestConfig) => {
   //Check to ensure that a re-render isn't adding a duplicate task.
   const { id, cacheName } = config;
   const task = taskQueue[cacheName];
@@ -42,7 +29,7 @@ const TaskQueueContext = createContext<QueueContextType>({
   addToQueue: (
     _: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
     _config: ConfigWithId,
-    _requestQueryConfig?: RequestConfig
+    _requestQueryConfig?: RequestConfig,
   ) => {
     throw new Error("addToQueue must be implemented");
   },
@@ -56,15 +43,15 @@ export const ApiWorkerProvider = ({ children }: WorkerProvider) => {
   //Create and assign the onMessage function once.
   if (!apiWorker.onmessage) {
     apiWorker.onmessage = (event: MessageEvent) => {
-      const { data, id } = event.data;  
-    
+      const { data, id } = event.data;
+
       //Get the task from the taskQueue
       const task = taskQueue[id];
-     
+
       if (task) {
         //Get the callback to pass information back
         const { callback } = task;
-       
+
         //Pass the data back to the callback
         callback(data, id);
 
@@ -74,11 +61,7 @@ export const ApiWorkerProvider = ({ children }: WorkerProvider) => {
     };
   }
 
-  return (
-    <TaskQueueContext.Provider value={{ addToQueue }}>
-      {children}
-    </TaskQueueContext.Provider>
-  );
+  return <TaskQueueContext.Provider value={{ addToQueue }}>{children}</TaskQueueContext.Provider>;
 };
 
 // Custom hook to access TaskQueueContext

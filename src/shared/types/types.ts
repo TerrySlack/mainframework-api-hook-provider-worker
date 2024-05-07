@@ -5,8 +5,8 @@ export interface Config {
   data?: unknown;
   mergeExising?: boolean;
   run?: boolean;
-  runOnce?: boolean; //Only run the query once Remove the task from the queue as I'm doing now.
-  runAuto?: boolean; //Run the query, without having to use the returned function
+  runOnce?: boolean; // Only run the query once Remove the task from the queue as I'm doing now.
+  runAuto?: boolean; // Run the query, without having to use the returned function
 }
 
 export type ConfigWithId = Config & {
