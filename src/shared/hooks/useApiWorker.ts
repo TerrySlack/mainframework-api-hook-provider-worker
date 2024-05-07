@@ -10,6 +10,7 @@ export const useApiWorker = <T>({
   const { addToQueue } = useTaskQueue();
   const [data, setData] = useState<any>(undefined);
   const lastRequestRequestDate = useRef<Date>(new Date());
+  const uuidRef = useRef<string>(window.crypto.randomUUID());
 
   const makeRequest = useCallback(
     (resolve?: (data: unknown) => void) => {
@@ -17,6 +18,11 @@ export const useApiWorker = <T>({
       Resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
       Resolve, will return the data from the api call to the calling function.
     */
+      //This will stop the request from running.  Good for when a condition is met and then the query can be run or not
+      if (queryConfig && typeof queryConfig?.run === "boolean" && !queryConfig?.run) {
+        return;
+      }
+
       //Compare the current time, with the last time.  If it's >= 2000 ms, then addToQueue
       const currentDate = new Date();
       if (
@@ -26,6 +32,9 @@ export const useApiWorker = <T>({
       ) {
         //Update lastRequestRequestDate
         lastRequestRequestDate.current = new Date();
+
+        //Add the id property
+        queryConfig["id"] = `${queryConfig.cacheName}-${uuidRef.current}`;
         addToQueue(resolve ? resolve : setData, queryConfig, requestConfig);
       }
     },

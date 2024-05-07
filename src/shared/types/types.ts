@@ -2,10 +2,16 @@ import { Dispatch, SetStateAction, ReactNode } from "react";
 
 export interface Config {
   cacheName: string | number;
+  data?: unknown;
+  mergeExising?: boolean;
+  run?: boolean;
   runOnce?: boolean; //Only run the query once Remove the task from the queue as I'm doing now.
   runAuto?: boolean; //Run the query, without having to use the returned function
 }
 
+export type ConfigWithId = Config & {
+  id?: string;
+};
 export interface RequestConfig {
   url: string;
   method: "GET" | "get" | "POST" | "post" | "PATCH" | "patch" | "DELETE" | "delete";
@@ -17,18 +23,18 @@ export interface RequestConfig {
 
 export interface QueryConfig {
   requestConfig?: RequestConfig;
-  queryConfig: Config;
+  queryConfig: ConfigWithId;
   returnPromise?: boolean;
 }
-
-// Create a new type that combines Config and RequestConfig
-//type CombinedConfig = Config & Omit<RequestConfig, "runAuto">;
-export type WorkerConfig = RequestConfig & Omit<Config, "runAuto">;
+export type WorkerConfig = RequestConfig &
+  Omit<Config, "runAuto"> & {
+    id?: string;
+  };
 
 export interface QueueContextType {
   addToQueue: (
     callback: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
-    config: Config,
+    config: ConfigWithId,
     requestQueryConfig?: RequestConfig,
   ) => void;
 }
@@ -49,10 +55,10 @@ export interface StoreSubject {
   runOnce: boolean;
   value: unknown;
   subscribers: ((data: unknown) => void)[];
-  next: (data: unknown) => void;
+  next: (value: unknown) => void;
   subscribe: (subscriber: (data: unknown) => void) => () => void;
 }
 
 export interface StoreSubjects {
-  [id: string | number]: StoreSubject;
+  [cacheName: string | number]: StoreSubject;
 }
