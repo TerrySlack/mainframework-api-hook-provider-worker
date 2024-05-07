@@ -1,4 +1,15 @@
-import { StoreSubjects, WorkerConfig } from "../../types/types";
+import { StoreSubject, StoreSubjects, WorkerConfig } from "../../types/types";
+
+const objectType = (value: unknown) => {
+  if (typeof value === "undefined") {
+    return "undefined";
+  } else if (value === null) {
+    return "null";
+  } else if (Array.isArray(value)) return "array";
+  else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return "object";
+  } else return "primitive";
+};
 
 const isEqual = (a: unknown, b: unknown): boolean => {
   if (typeof a !== typeof b) {
@@ -54,21 +65,21 @@ const isEqual = (a: unknown, b: unknown): boolean => {
 const storeSubjects: StoreSubjects = {};
 
 // Function to initialize store for a specific key if not already initialized1
-const initializeStoreWithId = (id: string | number) => {
-  if (!storeSubjects[id]) {
+const initializeStoreWithId = (cacheName: string | number, runOnce = false) => {
+  if (!storeSubjects[cacheName]) {
     //Following the observer pattern.
     const observable = {
-      runOnce: false,
-      value: {},
+      runOnce,
+      value: undefined,
       subscribers: [],
-      next: (data: unknown) => {
-        storeSubjects[id].value = data;
-        storeSubjects[id].subscribers.forEach((subscriber) => {
-          subscriber(data);
+      next: (value: unknown) => {
+        storeSubjects[cacheName].value = value;
+        storeSubjects[cacheName].subscribers.forEach((subscriber) => {
+          subscriber(value);
         });
       },
       subscribe: (subscriber: (data: unknown) => void) => {
-        const subject = storeSubjects[id];
+        const subject = storeSubjects[cacheName];
         if (subject) {
           subject.subscribers.push(subscriber);
         }
@@ -81,76 +92,122 @@ const initializeStoreWithId = (id: string | number) => {
     };
 
     //Add to the store
-    storeSubjects[id] = observable;
+    storeSubjects[cacheName] = observable;
+  }
+  //Return the subject
+  return storeSubjects[cacheName];
+};
 
-    //Subscribe right away to listen for changes
-    observable.subscribe((data: unknown) => {
-      if (data) postMessage({ id, data });
-    });
+const merge = (subject: StoreSubject, data: unknown, mergeExising = false) => {
+  //If there isn't any data, then return
+  if (!data) return;
+  const dataType = objectType(data);
+  const valueType = objectType(subject.value);
+  const value = subject.value;
+
+  if (!mergeExising || dataType === "primitive") {
+    //Update the subject directly
+    subject.next(data);
+  } else if (dataType === "array" && valueType === "array") {
+    subject.next([...(value as unknown[]), ...(data as unknown[])]);
+  } else if (dataType === "object" && valueType === "object") {
+    subject.next({ ...(value as object), ...(data as object) });
+  } else if (dataType === "object" && valueType === "array") {
+    subject.next([...(value as unknown[]), ...[data]]);
+  } else {
+    subject.next({ ...(value as object), ...(data as object) });
   }
 };
 
-const requestAndUpdateStore = async ({
-  url,
-  method,
-  body,
-  headers,
-  credentials = undefined,
-  mode = undefined,
-  cacheName,
-  runOnce = false,
-}: WorkerConfig) => {
+const requestAndUpdateStore = async (
+  {
+    url,
+    method,
+    body,
+    headers,
+    credentials = undefined,
+    mode = undefined,
+    cacheName,
+    runOnce = false,
+    mergeExising = false,
+    id,
+  }: WorkerConfig,
+  unsubscribe: () => void,
+) => {
   //Add an entry to the store if it's not present
-  initializeStoreWithId(cacheName);
+  const subject = initializeStoreWithId(cacheName, runOnce);
 
   try {
-    const response = await fetch(url, {
-      method: method.toLocaleUpperCase(),
-      headers: { "Content-Type": "application/json", ...headers },
-      body: body ? JSON.stringify(body) : undefined,
-      credentials,
-      mode,
-    });
+    if (url && method) {
+      //Make an api request.
+      const response = await fetch(url, {
+        method: method.toLocaleUpperCase(),
+        headers: { "Content-Type": "application/json", ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+        credentials,
+        mode,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
 
-    const responseData = await response.json();
+      //set runOnce to ensure the query is only ever run once :)
+      if (runOnce) {
+        subject.runOnce = runOnce;
+      }
 
-    //Get the subject
-    const subject = storeSubjects[cacheName];
-
-    //set runOnce to ensure the query is only ever run once :)
-    if (runOnce) {
-      subject.runOnce = runOnce;
-    }
-
-    // Compare new data with current data.  If it's different, then update the subject, which will trigger a post back to the main thread
-    if (!isEqual(responseData, subject.value)) {
-      //Add the data
-      subject.next(responseData);
+      const responseData = await response.json();
+      if (!isEqual(responseData, subject.value)) {
+        merge(subject, responseData, mergeExising);
+      }
+      //Free resources
+      unsubscribe();
     }
   } catch (error: unknown) {
-    postMessage({ cacheName, error: (error as Error).message });
+    //Free resources
+    unsubscribe();
+
+    //Return the error
+    postMessage({ id, cacheName, error: (error as Error).message });
   }
+};
+
+//In order to avoid issues with a closure, around id, we use function currying to create a unique subscriber, to pass to the subject
+const subScriberFactory = (id: string | number) => (data: unknown) => {
+  if (data) postMessage({ id, data });
 };
 
 // Listen for messages from the main thread
 onmessage = (event: MessageEvent) => {
-  const { data } = event.data;
-  const id = data.cacheName;
+  const { data: config } = event.data;
+  const { id, cacheName, mergeExising, runOnce, data } = config;
 
-  //Let's return data if it already exists.  Then any new data will be posted when a request is complete.
-  const subject = storeSubjects[id];
+  //Let's return data if it already exists. Then any new data will be posted when a request is complete.
+  const subject = storeSubjects[cacheName] ?? initializeStoreWithId(cacheName, runOnce);
 
-  //For some reason TS wants me to coerce subject to a storesubject.  Despite knowing that StoreSubjects is a StoreSubject array
-  if (subject) {
+  //Create a subscriber function for the subject
+  const subscribe = subScriberFactory(id);
+  const unsubscribe = subject.subscribe(subscribe);
+
+  if (Boolean(subject?.value) && !mergeExising) {
+    //Do an early return
     postMessage({ id, data: subject.value });
+  } else if (subject && data) {
+    if (mergeExising) {
+      merge(subject, data, mergeExising);
+    } else {
+      //Add the data to the subject, with an update
+      subject.next(data);
+    }
   }
 
-  //Fetch new data, if a data object was passed in
-  if (!subject || (subject && !subject.runOnce && data?.method)) {
-    requestAndUpdateStore(data);
+  //Check to see if I need to unsubscribe here.
+  if (subject.runOnce || !config.method) {
+    unsubscribe();
+  }
+
+  if (!subject.runOnce && config?.method) {
+    requestAndUpdateStore(config, unsubscribe);
   }
 };

@@ -34,7 +34,15 @@ will be passed back.
 ```JS | TS
 interface RequestConfig {
   url: string;
-  method: "get" | "post" | "patch" | "delete";
+  method:
+    | "GET"
+    | "get"
+    | "POST"
+    | "post"
+    | "PATCH"
+    | "patch"
+    | "DELETE"
+    | "delete";
   mode?: "cors" | "no-cors" | undefined;
   body?: unknown;
   headers?: object;
@@ -47,9 +55,13 @@ It can be used to just fetch
 
 ```JS | TS
 interface Config {
-  cacheName: string | number; //This is used to store data in the store within the webworker
+  cacheName: string | number;
+  data?: unknown;
+  mergeExising?: boolean; //NOTE:  This will only work on arrays and objects.  Primitives will be overwritten
+  run?: boolean;
   runOnce?: boolean; //Only run the query once Remove the task from the queue as I'm doing now.
   runAuto?: boolean; //Run the query, without having to use the returned function
+}
 }
 ```
 
@@ -108,16 +120,17 @@ export const App = () => (
   //Store data for the post request
  const [postData, setPostData] = useState<unknown>();
 
-  const [todos, todosRequest] = useApiWorker("todos", {
-    method: "Get",
-    url: "https://jsonplaceholder.typicode.com/todos/1",
-    headers: {
-      "x-api-key":
-        "live_YedloihKi9ObVaF7LovnmMzpe6PYkvT6NpZhRupWl0Z6VDi9WWTpHk6zqlsaqi7z",
+  const [todos] = useApiWorker({
+    requestConfig: {
+      method: "get",
+      url: "https://jsonplaceholder.typicode.com/todos/100",
+      headers: {
+        "x-api-key":  "add your key here",
+      },
     },
     queryConfig: {
       cacheName: "todos",
-      runAuto:true //<-- By setting this to true, you don't need to use
+      runAuto: true, //<-- By setting this to true, you don't need to use
     },
   });
 
@@ -132,11 +145,11 @@ export const App = () => (
   });
 
 
-  const [posts, postsRequest] = useApiWorker("posts",
-    {
-      method: "Post",
+  const [posts, postsRequest] = useApiWorker<Promise<any>>({
+    requestConfig: {
+      method: "post",
       url: "https://jsonplaceholder.typicode.com/posts",
-      body: {
+      body: {  //Body will be whatever you want it to be. 
         title: "foo",
         body: "bar",
         userId: 1,
@@ -148,8 +161,7 @@ export const App = () => (
     queryConfig: {
       cacheName: "posts",
     },
-    returnPromise: true //<--A promise is returned, instead of the data.
-  );
+  });
 
   useEffect(() => {
     catRequest();
@@ -207,4 +219,55 @@ const SomeOtherComponent = ()=>{
         </div>
       )
 }
+```
+
+### Here is an example of updating a component
+
+```JS | TS
+const SomeComponent = () => {
+  //Fetch the posts.  Note:  Do this by calling postsRequest in a useEffect
+  const [posts, postsRequest] = useApiWorker<Promise<any>>({
+    requestConfig: {
+      method: "post",
+      url: "https://jsonplaceholder.typicode.com/posts",
+      body: {
+        title: "foo",
+        body: "bar",
+        userId: 1,
+      },
+      headers: {
+        "Content-type": "application/json; charset=UTF-8",
+      },
+    },
+    queryConfig: {
+      cacheName: "posts",
+    },
+  });
+
+  /*
+    The property run will only run the query if true is passed to it. In this case, once the posts have been returned, then 
+    run will have a value of true.  cows (assuming it already has data in it), have posts merged into it it.
+  */
+  const [cows] = useApiWorker({
+    queryConfig: {
+      cacheName: "cows",
+      run: Boolean(posts), //Only run this if posts exist.
+      data: { posts }, //cats will either be populated or undefined
+      mergeExising: true,
+    },
+  });
+
+  useEffect(() => {
+    postsRequest();
+  }, []);
+
+  return (
+    cows && (
+      <div>
+        <span>cows</span>
+        <div>{JSON.stringify(cows)}</div>
+      </div>
+    )
+  );
+};
 ```

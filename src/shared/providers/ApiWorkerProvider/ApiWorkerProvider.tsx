@@ -1,24 +1,25 @@
 /*eslint-disable */
 import { Dispatch, SetStateAction, createContext, useContext } from "react";
-import { Config, QueueContextType, RequestConfig, TaskQueue, WorkerProvider } from "../../types/types";
+import { Config, ConfigWithId, QueueContextType, RequestConfig, TaskQueue, WorkerProvider } from "../../types/types";
 
 // Create the worker once outside the hook
 const apiWorker = new Worker(new URL("../../workers/api/api.worker", import.meta.url));
 
-const addToQueue = (callback: (data: unknown) => void, config: Config, requestQueryConfig?: RequestConfig) => {
+const addToQueue = (callback: (data: unknown) => void, config: ConfigWithId, requestQueryConfig?: RequestConfig) => {
   //Check to ensure that a re-render isn't adding a duplicate task.
-  const { cacheName, runOnce = false } = config;
+  const { id, cacheName } = config;
   const task = taskQueue[cacheName];
 
+  //Duplicate, due to a re-render.  We only want to make one request.
   //Only add a new task, if it's not been in there before.  For the sake of speed, previous tasks will be kept.
-  if (!task) {
+  if (!task && id) {
     //task doesn't exist, add to the queue
-    taskQueue[cacheName] = { callback };
-  } else return; //If the task exists, it's because of a re-render.
+    taskQueue[id] = { callback };
+  } else return;
 
   // Call the worker to process the task immediately upon adding it to the queue
   apiWorker.postMessage({
-    data: { ...requestQueryConfig, cacheName, runOnce },
+    data: { ...requestQueryConfig, ...config },
   });
 };
 
@@ -27,7 +28,7 @@ const TaskQueueContext = createContext<QueueContextType>({
   /* eslint-disable @typescript-eslint/no-unused-vars */
   addToQueue: (
     _: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
-    _config: Config,
+    _config: ConfigWithId,
     _requestQueryConfig?: RequestConfig,
   ) => {
     throw new Error("addToQueue must be implemented");
@@ -44,8 +45,9 @@ export const ApiWorkerProvider = ({ children }: WorkerProvider) => {
     apiWorker.onmessage = (event: MessageEvent) => {
       const { data, id } = event.data;
 
-      //Get the task from the taskQuer
+      //Get the task from the taskQueue
       const task = taskQueue[id];
+
       if (task) {
         //Get the callback to pass information back
         const { callback } = task;
