@@ -5,8 +5,9 @@ export interface Config {
   data?: unknown;
   mergeExising?: boolean;
   run?: boolean;
-  runOnce?: boolean; // Only run the query once Remove the task from the queue as I'm doing now.
-  runAuto?: boolean; // Run the query, without having to use the returned function
+  runOnce?: boolean; //Only run the query once Remove the task from the queue as I'm doing now.
+  runAuto?: boolean; //Run the query, without having to use the returned function
+  reset?: Reset;
 }
 
 export type ConfigWithId = Config & {
@@ -26,10 +27,7 @@ export interface QueryConfig {
   queryConfig: ConfigWithId;
   returnPromise?: boolean;
 }
-export type WorkerConfig = RequestConfig &
-  Omit<Config, "runAuto"> & {
-    id?: string;
-  };
+export type WorkerConfig = RequestConfig & Omit<ConfigWithId, "runAuto">;
 
 export interface QueueContextType {
   addToQueue: (
@@ -44,14 +42,16 @@ export interface WorkerProvider {
 }
 // Define types for task and task queue
 export interface Task {
+  timeStamp: number;
   callback: (data: unknown, id: string) => void;
 }
 
 export interface TaskQueue {
   [id: string | number]: Task;
 }
-
 export interface StoreSubject {
+  name: string | number;
+  lock: boolean;
   runOnce: boolean;
   value: unknown;
   subscribers: ((data: unknown) => void)[];
@@ -62,3 +62,12 @@ export interface StoreSubject {
 export interface StoreSubjects {
   [cacheName: string | number]: StoreSubject;
 }
+
+export interface ResetConfig {
+  cacheName: string;
+  placeHolderData: unknown;
+}
+
+export type Queue<T> = Record<string, T>;
+
+export type Reset = string | ResetConfig;
