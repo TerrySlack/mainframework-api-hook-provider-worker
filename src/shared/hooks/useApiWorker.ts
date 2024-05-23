@@ -6,18 +6,18 @@ export const useApiWorker = <T>({
   requestConfig,
   queryConfig,
   returnPromise,
+  //}: QueryConfig): [T | undefined, (() => void) | (() => T)] => {
 }: QueryConfig): [T | undefined, () => T extends Promise<unknown> ? T : void] => {
   const { addToQueue } = useTaskQueue();
   const [, setData] = useState<any>(0);
   const lastRequestRequestDate = useRef<Date>(new Date());
   const uuidRef = useRef<string>(window.crypto.randomUUID());
-  const idRef = useRef<string>();
+
   const dataRef = useRef<unknown>(); //Let's ensure referential integrity
-  const callBack = useCallback((data: unknown) => {
+  const callBackRef = useRef<(data: unknown) => void>((data: unknown) => {
     dataRef.current = data;
     setData((state: number) => (state += 1));
-  }, []);
-
+  });
   const makeRequest = useCallback(
     (resolve?: (data: unknown) => void) => {
       /*     
@@ -43,20 +43,14 @@ export const useApiWorker = <T>({
       ) {
         //Update lastRequestRequestDate
         lastRequestRequestDate.current = new Date();
-        const id = `${queryConfig.cacheName}-${uuidRef.current}`;
 
-        //We have the same re quest
-        if (idRef.current !== id) {
-          //Update the ref and the id property
-          idRef.current = id;
-        }
         //Add the id property
-        queryConfig["id"] = idRef.current;
+        queryConfig["id"] = uuidRef.current;
 
-        addToQueue(resolve ? resolve : callBack, queryConfig, requestConfig);
+        addToQueue(resolve ? resolve : callBackRef.current, queryConfig, requestConfig);
       }
     },
-    [queryConfig, requestConfig, addToQueue, callBack],
+    [queryConfig, requestConfig, addToQueue],
   );
 
   const request = returnPromise
