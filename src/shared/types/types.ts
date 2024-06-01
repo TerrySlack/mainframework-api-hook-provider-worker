@@ -3,7 +3,7 @@ import { Dispatch, SetStateAction, ReactNode } from "react";
 export interface Config {
   cacheName: string | number;
   data?: unknown;
-  mergeExising?: boolean;
+  mergeExisting?: boolean;
   run?: boolean;
   runOnce?: boolean; //Only run the query once Remove the task from the queue as I'm doing now.
   runAuto?: boolean; //Run the query, without having to use the returned function
@@ -27,13 +27,16 @@ export interface QueryConfig {
   queryConfig: ConfigWithId;
   returnPromise?: boolean;
 }
-export type WorkerConfig = RequestConfig & Omit<ConfigWithId, "runAuto">;
+export type WorkerConfig = RequestConfig &
+  Omit<ConfigWithId, "runAuto"> & {
+    id?: string;
+  };
 
 export interface QueueContextType {
   addToQueue: (
-    callback: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
     config: ConfigWithId,
     requestQueryConfig?: RequestConfig,
+    callback?: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
   ) => void;
 }
 
@@ -49,10 +52,10 @@ export interface Task {
 export interface TaskQueue {
   [id: string | number]: Task;
 }
+
 export interface StoreSubject {
   name: string | number;
   lock: boolean;
-  runOnce: boolean;
   value: unknown;
   subscribers: ((data: unknown) => void)[];
   next: (value: unknown) => void;
