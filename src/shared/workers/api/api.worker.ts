@@ -1,336 +1,219 @@
-import { StoreSubject, StoreSubjects, WorkerConfig, Queue, Reset, ResetConfig } from "../../types/types";
+import { StoreSubject, StoreSubjects, WorkerConfig, Queue } from "../../types/types";
 
-const objectType = (value: unknown) => {
-  if (typeof value === "undefined") {
-    return "undefined";
-  } else if (value === null) {
-    return "null";
-  } else if (Array.isArray(value)) return "array";
-  else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return "object";
-  } else return "primitive";
-};
-
-const isEqual = (a: unknown, b: unknown): boolean => {
-  if (typeof a !== typeof b) {
-    return false; // Types are different
-  }
-
-  if (typeof a !== "object" || a === null) {
-    return a === b; // For non-object types, perform simple comparison
-  }
-
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) {
-      return false; // Arrays have different lengths
-    }
-    let i = 0;
-    while (i < a.length) {
-      if (!isEqual(a[i], b[i])) {
-        return false; // Array elements are different
-      }
-      i += 1;
-    }
-
-    return true; // All array elements are equal
-  }
-
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return false; // One is an array and the other is not, they can't be equal
-  }
-
-  const objA = a as Record<string | number, unknown>;
-  const objB = b as Record<string | number, unknown>;
-
-  const keysA = Object.keys(objA);
-  const keysB = Object.keys(objB);
-
-  if (keysA.length !== keysB.length) {
-    return false; // Objects have different number of keys
-  }
-
-  let j = 0;
-  while (j < keysA.length) {
-    const key = keysA[j];
-    if (!keysB.includes(key) || !isEqual(objA[key], objB[key])) {
-      return false; // Keys are different or their values are not equal
-    }
-    j += 1;
-  }
-
-  return true; // All keys and their values are equal
-};
-const merge = (value: unknown, data: unknown, mergeExising = false) => {
-  if (!data) return value;
-  if (!value) return data;
-
-  const dataType = objectType(data);
-  const valueType = objectType(value);
-
-  if (!mergeExising || dataType === "primitive") {
-    //Update the subject directly
-    return data;
-  } else if (dataType === "array" && valueType === "array") {
-    return [...(value as unknown[]), ...(data as unknown[])];
-  } else if (dataType === "object" && valueType === "object") {
-    //Check, if both objects have the same keys, then return an array, otherwise, return an object.
-    if (isEqual(Object.keys(value), Object.keys(data))) {
-      return [value, data];
-    }
-    return { ...(value as object), ...(data as object) };
-  } else if (dataType === "object" && valueType === "array") {
-    return [...(value as unknown[]), ...[data]];
-  } else {
-    return { ...(value as object), ...(data as object) };
-  }
-};
-
-const mergeNext = (value: unknown, data: unknown, mergeExising = false) => {
-  //If there isn't any data, then return
-  if (!data) return undefined;
-
-  if (!mergeExising || objectType(data) === "primitive") {
-    //Update the subject directly
-    //subject.next(data);
-    return data;
-  }
-  //return the merged data
-  return merge(value, data, mergeExising);
-};
-
-const requestAndUpdateStore = async (
-  instance: ApiRequest,
-  {
-    url,
-    method,
-    body,
-    headers,
-    credentials = undefined,
-    mode = undefined,
-    cacheName,
-    runOnce = false,
-    mergeExising = false,
-    id,
-  }: WorkerConfig,
-  unsubscribe: () => void,
-) => {
-  //Add an entry to the store if it's not present
-  const subject = initializeStoreWithId(cacheName, runOnce);
-
-  try {
-    if (url && method) {
-      //Still want to make an api request.
-      const response = await fetch(url, {
-        method: method.toLocaleUpperCase(),
-        headers: { "Content-Type": "application/json", ...headers },
-        body: body ? JSON.stringify(body) : undefined,
-        credentials,
-        mode,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      const responseData = await response.json();
-
-      // //set runOnce to ensure the query is only ever run once :)
-      if (runOnce) {
-        subject.runOnce = runOnce;
-      }
-
-      if (!isEqual(responseData, subject.value)) {
-        const data = mergeNext(subject.value, responseData, mergeExising);
-        if (data) instance.polling(subject, data);
-      }
-      //Free resources
-      else unsubscribe();
-    }
-  } catch (error: unknown) {
-    //Free resources
-    unsubscribe();
-
-    //Return the error
-    postMessage({
-      id,
-      cacheName,
-      error: (error as Error).message,
-      //pending: false,
-    });
-    instance.destroy();
-  }
-};
-
-const subScriberFactory = (id: string | number) => (data: unknown) => {
-  if (data) postMessage({ id, data });
-};
+//Hold the classes created on each request passed to the worker
 const classQueue: Queue<ApiRequest> = {};
-const storeSubjects: StoreSubjects = {};
 
-const initializeStoreWithId = (cacheName: string | number, runOnce = false) => {
-  if (!storeSubjects[cacheName]) {
-    //Following the observer pattern.
-    const observable: StoreSubject = {
-      name: cacheName,
-      lock: false,
-      runOnce,
-      value: undefined,
-      subscribers: [],
-      next: (value: unknown) => {
-        //Check if the currentvalue is the same as the incoming value.
-        if (isEqual(value, observable.value)) return;
-        observable.value = value;
-        observable.subscribers.forEach((subscriber) => {
-          subscriber(value);
-        });
-      },
-      subscribe: (subscriber: (data: unknown) => void) => {
-        const subject = storeSubjects[cacheName];
-        if (subject) {
-          subject.subscribers.push(subscriber);
-        }
+// Define the store
+const store: StoreSubjects = {};
 
-        // Return unsubscribe function
-        return () => {
-          subject.subscribers = subject.subscribers.filter((s) => s !== subscriber);
-        };
-      },
-    };
-    //Add to the store
-    storeSubjects[cacheName] = observable;
-  }
-  //Return the subject
-  return storeSubjects[cacheName];
-};
-
-//Reset the cache to the initial state or upldate with placeholder data
-const resetCache = (reset: Reset) => {
-  //Determine if reset is a string or an object
-  const isObj = objectType(reset) === "object";
-
-  //Get the cacheName, based on the value of isObj
-  const cacheName = isObj ? (reset as ResetConfig).cacheName : (reset as string);
-
-  //Extract the place holder if it exists
-  const placeHolderData = isObj ? (reset as ResetConfig).placeHolderData : undefined;
-
-  //Ensure that some data was passed in.
-  const data = placeHolderData ?? undefined;
-
-  //Get the subject
-  const subject = storeSubjects[cacheName] as StoreSubject;
-
-  //reset the subject.value property
-  subject.next(data);
-};
-
-/*
-    When this class is instantiated, it will add itself to the global classQueue.  All code will be executed inside the class.
-    There won't be any object oriented coding happening, in order to avoid collisions from multiple calls to the web worker.
-*/
+// Api Request class
 class ApiRequest {
   private config: WorkerConfig;
-  private unsubscribe: any;
+
+  //Note the !. This indicates taht unsubscribe will be set elsewhere, outside the construtor
+  private unsubscribe!: () => void;
+
   constructor(config: WorkerConfig) {
-    // Initialize the class with the provided config
     this.config = config;
-    const id = this.config.id;
-    if (id) {
-      // Add the instance to the class queue
-      classQueue[id] = this;
-      //Start the request
-      this.init();
+    classQueue[this.config.cacheName.toString().toLocaleLowerCase()] = this;
+    this.init();
+  }
+
+  private init() {
+    const { cacheName, mergeExisting, data, reset, method } = this.config;
+    const stringifiedCacheName = cacheName.toString().toLocaleLowerCase();
+    const subject = this.initializeStoreWithCacheName(stringifiedCacheName);
+
+    const subscribe = this.subScriberFactory(stringifiedCacheName);
+    this.unsubscribe = subject.subscribe(subscribe);
+
+    if (reset && typeof subject?.value !== "undefined") {
+      this.reset(stringifiedCacheName);
+    }
+
+    if (method) {
+      this.requestAndUpdateStore(this.config, this.unsubscribe);
+    } else if (!method && Boolean(subject?.value)) {
+      this.polling(subject);
+    } else if (subject && data) {
+      if (mergeExisting) {
+        const mergedData = this.merge(subject.value, data, mergeExisting);
+        if (mergedData) this.polling(subject, mergedData);
+      } else {
+        this.polling(subject, data);
+      }
     }
   }
 
-  polling(subject: StoreSubject, data: unknown, callDestroy = false) {
-    //We want to poll the observable, and if it's lock property is false, update the value.
+  private polling(subject: StoreSubject, data?: unknown) {
     const interval = setInterval(() => {
       if (!subject.lock) {
-        //lock the the observable, to prevent collisions
         subject.lock = true;
-
-        //update the subject with the data
-        subject.next(data);
-        //free the subject
+        subject.next(data ?? subject?.value);
         subject.lock = false;
-
-        if (callDestroy)
-          //Remove this instance from the queue
-          this.destroy();
-
-        //Free resources
+        this.destroy();
         clearInterval(interval);
       }
     }, 20);
   }
-  init() {
-    const {
-      id = "",
-      cacheName,
-      //pending = false,
-      mergeExising,
-      runOnce,
-      data,
-      reset,
-    } = this.config;
 
-    if (id.length === 0) return;
-    //Let's return data if it already exists.  Then any new data will be posted when a request is complete.
-    const subject = storeSubjects[cacheName] ?? initializeStoreWithId(cacheName, runOnce);
+  private reset(cacheName: string | number) {
+    const subject = store[cacheName.toString().toLocaleLowerCase()];
+    if (subject) {
+      subject.value = undefined;
+    }
+  }
 
-    //const subscribe = subScriberFactory(id, pending ? false : pending);
-    const subscribe = subScriberFactory(id);
-    this.unsubscribe = subject.subscribe(subscribe);
+  private subScriberFactory = (cacheName: string | number) => (data: unknown) => {
+    if (data) {
+      postMessage({ cacheName, data });
+    }
+  };
 
-    if (reset) {
-      this.reset(reset);
+  private merge = (value: unknown, data: unknown, mergeExisting: boolean): unknown => {
+    if (mergeExisting && this.isObject(value) && this.isObject(data)) {
+      return { ...value, ...data };
+    } else if (mergeExisting && Array.isArray(value) && Array.isArray(data)) {
+      return [...value, ...data];
+    } else {
+      return data;
+    }
+  };
+
+  private initializeStoreWithCacheName(cacheName: string | number): StoreSubject {
+    const stringifiedCacheName = cacheName.toString().toLocaleLowerCase();
+    if (!store[stringifiedCacheName]) {
+      store[stringifiedCacheName] = this.createSubject(stringifiedCacheName);
+    }
+    return store[stringifiedCacheName];
+  }
+
+  private createSubject(cacheName: string | number): StoreSubject {
+    let subject = store[cacheName.toString().toLocaleLowerCase()];
+    const stringifiedCacheName = cacheName.toString().toLocaleLowerCase();
+
+    if (!subject) {
+      subject = {
+        name: stringifiedCacheName,
+        lock: false,
+        value: undefined,
+        subscribers: [],
+        next: (value: unknown) => {
+          subject.value = value;
+          subject.subscribers.forEach((subscriber) => subscriber(value));
+        },
+        subscribe: (subscriber: (data: unknown) => void) => {
+          subject.subscribers.push(subscriber);
+          return () => {
+            subject.subscribers = subject.subscribers.filter((sub) => sub !== subscriber);
+          };
+        },
+      };
+      store[stringifiedCacheName] = subject;
     }
 
-    if (subject?.value) {
-      postMessage({
-        id,
-        data: subject.value,
-      });
-    } else if (subject && data) {
-      if (mergeExising) {
-        const mergedData = mergeNext(subject.value, data, mergeExising);
-        if (mergedData) this.polling(subject, mergedData);
-      } else {
-        //Add the data to the subject, with an update
-        this.polling(subject, data);
+    return subject;
+  }
+
+  private requestAndUpdateStore(config: WorkerConfig, unsubscribe: () => void) {
+    const { url, method, body, headers, credentials, mode, cacheName, mergeExisting = false } = config;
+
+    const stringifiedCacheName = cacheName.toString().toLocaleLowerCase();
+    const subject = this.initializeStoreWithCacheName(stringifiedCacheName);
+    if (url && method) {
+      fetch(url, {
+        method: method.toUpperCase(),
+        headers: { "Content-Type": "application/json", ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+        credentials,
+        mode,
+      })
+        .then((response) => {
+          // Check if the response is successful (status code 200-299)
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          // Parse the response as JSON
+          return response.json();
+        })
+        .then((responseData) => {
+          if (!this.isEqual(responseData, subject.value)) {
+            const data = this.merge(subject.value, responseData, mergeExisting);
+            if (data) this.polling(subject, data);
+          } else {
+            unsubscribe();
+          }
+        })
+        .catch((error: unknown) => {
+          unsubscribe();
+          postMessage({
+            cacheName: stringifiedCacheName,
+            error: (error as Error).message,
+          });
+          this.destroy();
+        });
+    }
+  }
+
+  private isEqual(a: unknown, b: unknown): boolean {
+    if (typeof a !== typeof b) {
+      return false; // Types are different
+    }
+
+    if (typeof a !== "object" || a === null) {
+      return a === b; // For non-object types, perform simple comparison
+    }
+
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) {
+        return false; // Arrays have different lengths
       }
+      let i = 0;
+      while (i < a.length) {
+        if (!this.isEqual(a[i], b[i])) {
+          return false; // Array elements are different
+        }
+        i += 1;
+      }
+
+      return true; // All array elements are equal
     }
 
-    if (Boolean(!subject.runOnce) && Boolean(this.config?.method)) {
-      requestAndUpdateStore(this, this.config, this.unsubscribe);
-    } else if (subject.runOnce) {
-      //Free resources.  Remove the class instance from the classQueue
-      this.destroy();
+    if (Array.isArray(a) || Array.isArray(b)) {
+      return false; // One is an array and the other is not, they can't be equal
     }
-  }
 
-  reset(reset: Reset) {
-    resetCache(reset);
-  }
+    const objA = a as Record<string | number, unknown>;
+    const objB = b as Record<string | number, unknown>;
 
-  destroy() {
-    //Clean up the subscriber
+    const keysA = Object.keys(objA);
+    const keysB = Object.keys(objB);
+
+    if (keysA.length !== keysB.length) {
+      return false; // Objects have different number of keys
+    }
+
+    let j = 0;
+    while (j < keysA.length) {
+      const key = keysA[j];
+      if (!keysB.includes(key) || !this.isEqual(objA[key], objB[key])) {
+        return false; // Keys are different or their values are not equal
+      }
+      j += 1;
+    }
+
+    return true; // All keys and their values are equal
+  }
+  private isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+  private destroy() {
     this.unsubscribe();
-
-    const id = this.config.id?.toString() ?? "";
-    if (id.length === 0) return;
-    // Clean up resources and remove the instance from the queue
-    delete classQueue[id];
+    delete classQueue[this.config.cacheName.toString().toLocaleLowerCase()];
   }
 }
 
-const addClass = (dataRequest: WorkerConfig) => {
-  //Create a new class, by passing a copy of dataRequest.  The class will add itself to a queue, so no need
-  new ApiRequest(structuredClone(dataRequest));
-};
-
 onmessage = ({ data: { dataRequest } }: MessageEvent) => {
-  //Use addClass to setup a new JS context and help prevent collisions, from multiple calls to the web worker.
-  addClass(dataRequest);
+  //Use structured clone to trigger a new context and avoid collisions when multiple calls to the worker occur
+  new ApiRequest(structuredClone(dataRequest));
 };
