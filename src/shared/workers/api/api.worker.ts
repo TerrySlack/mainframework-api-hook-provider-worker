@@ -6,6 +6,27 @@ const classQueue: Queue<ApiRequest> = {};
 // Define the store
 const store: StoreSubjects = {};
 
+const isBlobOrFile = (value: unknown): boolean => value instanceof Blob || value instanceof File;
+
+const checkProperties = (obj: unknown): boolean => {
+  if (Array.isArray(obj) || (typeof obj === "object" && Boolean(obj))) {
+    for (const key in obj as Record<string, unknown>) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const value = (obj as Record<string, unknown>)[key];
+        if (isBlobOrFile(value)) {
+          return true;
+        }
+        if (typeof value === "object" && value !== null && checkProperties(value)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
+const containsBlobOrFile = (input: unknown): boolean => checkProperties(input);
+
 // Api Request class
 class ApiRequest {
   private config: WorkerConfig;
@@ -115,16 +136,60 @@ class ApiRequest {
     return subject;
   }
 
+  private createBody(body: unknown, isFileUpload: boolean) {
+    //Determine if it's a file upload or a regular request
+
+    if (!isFileUpload)
+      //Is body defined or not?
+      return body ? JSON.stringify(body) : undefined;
+
+    //It's a fileUpload.  Create the form object
+    const formData = new FormData();
+
+    if (this.isObject(body)) {
+      //This will be an object
+      for (const [id, file] of Object.entries(body)) {
+        //The name will be the key used in the body
+        //Ensure that hte File is
+        formData.append(id, file as File | Blob);
+      }
+    } else if (Array.isArray(body)) {
+      //Iterate over the object in each element
+
+      let i = 0;
+      const len = body.length;
+
+      while (i < len) {
+        //Get the keys
+        const { id, file } = body[i];
+        formData.append(id, file as File | Blob);
+
+        i++;
+      }
+    }
+    return formData;
+  }
+
   private requestAndUpdateStore(config: WorkerConfig, unsubscribe: () => void) {
     const { url, method, body, headers, credentials, mode, cacheName, mergeExisting = false } = config;
 
     const stringifiedCacheName = cacheName.toString().toLocaleLowerCase();
     const subject = this.initializeStoreWithCacheName(stringifiedCacheName);
     if (url && method) {
+      //Is the request a file upload or a regular requst
+      const isFileUpload = containsBlobOrFile(body);
+
+      //Dynamically add the content-type, based on whether it's a file upload or not
+      const mergedHeaders = {
+        ...(headers && headers),
+        ...(!isFileUpload && { "Content-Type": "application/json" }),
+        ...(isFileUpload && { "Content-Type": "multipart/form-data" }), //Docs at Mdn say you don't need this, but it wouldn't work without it.  fetch adds "Content-Type": "text/plain"
+      };
+
       fetch(url, {
         method: method.toUpperCase(),
-        headers: { "Content-Type": "application/json", ...headers },
-        body: body ? JSON.stringify(body) : undefined,
+        headers: !isFileUpload ? mergedHeaders : undefined, //Don't add the headers if it's a file upload
+        body: this.createBody(body, isFileUpload),
         credentials,
         mode,
       })

@@ -29,7 +29,7 @@ export const App = () => (
 Requests are made by passing in a request object.  
 Here's the typing for a request object to pass to the hook
 This object is optional. If it's not passed in, then any existing data within the store
-will be passed back.
+will be passed back. If it is passed in, the data returned from the api will be stored and return to the calling code.
 
 ```JS | TS
 interface RequestConfig {
@@ -51,7 +51,7 @@ interface RequestConfig {
 ```
 
 There is also a required queryConfig object.
-It can be used to just fetch
+It can be used to return any existing data within the store
 
 ```JS | TS
 interface Config {
@@ -61,7 +61,6 @@ interface Config {
   run?: boolean;
   runOnce?: boolean; //Only run the query once Remove the task from the queue as I'm doing now.
   runAuto?: boolean; //Run the query, without having to use the returned function
-}
 }
 ```
 
@@ -78,13 +77,8 @@ const [cats] = useApiWorker({
 In a component, where you need to make a request, use the useApiWorker hook for each request.
 You can use multiple instances of the hook, and make: get, post, patch and delete reqeusts
 Note: Review the interface. If you want to use cors, you need to pass credentials, which is set to undefined by default.
-Also, the right side method, in the returned array from useApiWorker, it's either data, or a promise.
-
-If you want a promise returned, you set the second parameter passed to the useApiWorker hook to true. Note: This is not the promise from
-the api request, just a new promise, with the data returned from the api request.
-
-See the post example on how to do this and use
-the promise, in the bottom most useEffect
+Also, the right side property in the returend tuple it's either a function to make a call, or a promise, depending on the whether the 3rd parameter for the hook is set to true.
+See below for 2 examples of using a promise. Note: This is not the promise from the api request, just a new promise, with the data returned from the api request.
 
 A user must enter a cacheName when using the hook. Similar to other stores, this will be used to store data in the cache, from an api request, and will also
 allow the data to be retrieved elsewhere in the app, if a request object is not passed into the
@@ -105,12 +99,55 @@ request for Todos in the useEffect now.
     },
     queryConfig: {
       cacheName: "todos",
-      runAuto:true //<-- By setting this to true, you don't need to use
+      runAuto:true //<-- By setting this to true, you don't need to use the returned function from the tuple
     },
   }
 ```
 
 ### Examples
+
+### File Uploading
+
+The package can handle file uploading, however the format needs to be flat.
+
+You can add any properties you like, however, when saving, only the id and file property will be used. The store in the worker, will store whatever is returned
+from your api and you can do what you like with this data. Ie, perhaps an array of urls for the images are returned and can be used in a gallery.
+
+If id is not provided, the file.name will be used.
+
+Note: Do not pass a formData object. THe formData object will be created for you. FormData objects cannot be passed to a web worker and
+the code is not built to handle getting properties form the form data object and then recreating it.
+
+You can upload multiple files, by handling the uploading and capturing the uploading files. But ensure that the valid files
+that need to be uploaded, are passed in this format.
+
+```JS | TS
+[
+  {
+    id: "1",  //Id is whatever you want to add
+    file,  //Type File or Blob
+   preview: URL.createObjectURL(file)
+  },
+  {
+    id: "2",,  //Id is whatever you want to add
+    file,  //Type File or Blob
+    preview: URL.createObjectURL(file)
+  },
+]
+
+
+ const [savedFilesStatus, saveFilesPostRequest] = useApiWorker({
+    requestConfig: {
+      method: "post",
+      url: "Add your own url",
+      body: validFiles, //This is an array as shown above
+    },
+    queryConfig: {
+      cacheName: "pick a cache name",
+    },
+  });
+
+```
 
 ```JS | TS
 import { useEffect } from "react";
@@ -149,7 +186,7 @@ export const App = () => (
     requestConfig: {
       method: "post",
       url: "https://jsonplaceholder.typicode.com/posts",
-      body: {  //Body will be whatever you want it to be. 
+      body: {  //Body will be whatever you want it to be.
         title: "foo",
         body: "bar",
         userId: 1,
@@ -161,6 +198,7 @@ export const App = () => (
     queryConfig: {
       cacheName: "posts",
     },
+    true //<--this sets the property returnPromise to true, and a promise will be returned.
   });
 
   useEffect(() => {
@@ -242,10 +280,11 @@ const SomeComponent = () => {
     queryConfig: {
       cacheName: "posts",
     },
+    true //<--this sets the property returnPromise to true, and a promise will be returned.
   });
 
   /*
-    The property run will only run the query if true is passed to it. In this case, once the posts have been returned, then 
+    The property run will only run the query if true is passed to it. In this case, once the posts have been returned, then
     run will have a value of true.  cows (assuming it already has data in it), have posts merged into it it.
   */
   const [cows] = useApiWorker({
