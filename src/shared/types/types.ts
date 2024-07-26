@@ -45,8 +45,7 @@ export interface WorkerProvider {
 }
 // Define types for task and task queue
 export interface Task {
-  timeStamp: number;
-  callback: (data: unknown, id: string) => void;
+  callback: (data: unknown) => void;
 }
 
 export interface TaskQueue {

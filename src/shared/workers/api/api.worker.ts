@@ -1,15 +1,28 @@
-import { StoreSubject, StoreSubjects, WorkerConfig, Queue } from "../../types/types";
+import { Queue, StoreSubject, StoreSubjects, WorkerConfig } from "../../types/types";
 
+interface NestedRecord {
+  [key: string]:
+    | string
+    | number
+    | boolean
+    | File
+    | Blob
+    | Date
+    | FileList
+    | NestedRecord
+    | (string | number | boolean | File | Blob | Date | FileList | NestedRecord)[];
+}
 //Hold the classes created on each request passed to the worker
 const classQueue: Queue<ApiRequest> = {};
 
 // Define the store
 const store: StoreSubjects = {};
 
-const isBlobOrFile = (value: unknown): boolean => value instanceof Blob || value instanceof File;
+const isBlobOrFile = <T>(value: T): boolean => value instanceof Blob || value instanceof File;
 
-const checkProperties = (obj: unknown): boolean => {
-  if (Array.isArray(obj) || (typeof obj === "object" && Boolean(obj))) {
+const checkProperties = <T>(obj: T): boolean => {
+  if (obj === null || typeof obj === "undefined") return false;
+  if (Array.isArray(obj) || typeof obj === "object") {
     for (const key in obj as Record<string, unknown>) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const value = (obj as Record<string, unknown>)[key];
@@ -22,10 +35,9 @@ const checkProperties = (obj: unknown): boolean => {
       }
     }
   }
+
   return false;
 };
-
-const containsBlobOrFile = (input: unknown): boolean => checkProperties(input);
 
 // Api Request class
 class ApiRequest {
@@ -136,39 +148,64 @@ class ApiRequest {
     return subject;
   }
 
-  private createBody(body: unknown, isFileUpload: boolean) {
-    //Determine if it's a file upload or a regular request
+  private addFileBlobToForm = (form: FormData, file: File | Blob, key: string) => {
+    if (file instanceof File || file instanceof Blob) {
+      //If it's a file, just use the existing name associated with it.  If it's a blob, use the key
+      form.append(file instanceof File ? file.name : key, file);
+    }
+    return form;
+  };
 
-    if (!isFileUpload)
-      //Is body defined or not?
-      return body ? JSON.stringify(body) : undefined;
+  private convertToFormData = (
+    obj: NestedRecord,
+    form: FormData = new FormData(),
+    namespace: string = "",
+  ): FormData => {
+    for (const property in obj) {
+      // eslint-disable-next-line
+      if (obj.hasOwnProperty(property)) {
+        const formKey = namespace ? `${namespace}[${property}]` : property;
+        const value = obj[property];
 
-    //It's a fileUpload.  Create the form object
-    const formData = new FormData();
-
-    if (this.isObject(body)) {
-      //This will be an object
-      for (const [id, file] of Object.entries(body)) {
-        //The name will be the key used in the body
-        //Ensure that hte File is
-        formData.append(id, file as File | Blob);
-      }
-    } else if (Array.isArray(body)) {
-      //Iterate over the object in each element
-
-      let i = 0;
-      const len = body.length;
-
-      while (i < len) {
-        //Get the keys
-        const { id, file } = body[i];
-        formData.append(id, file as File | Blob);
-
-        i++;
+        if (value instanceof FileList) {
+          let i = 0;
+          const len = value.length;
+          while (i < len) {
+            const file = value[i];
+            form.append(file.name, file);
+            i++;
+          }
+        } else if (value instanceof File || value instanceof Blob) {
+          //If it's a file, just use the existing name associated with it.  If it's a blob, use the formKey
+          this.addFileBlobToForm(form, value, formKey);
+        } else if (value instanceof Date) {
+          form.append(formKey, value.toISOString()); // Convert Date to ISO 8601 string
+        } else if (value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+          //It's an object, make a recursive call
+          this.convertToFormData(value as NestedRecord, form, formKey);
+        } else if (Array.isArray(value)) {
+          // Process the array
+          let index = 0;
+          while (index < value.length) {
+            const element = value[index];
+            const tempKey = `${formKey}[${index}]`;
+            // Handle File or Blob types directly
+            if (element instanceof File || element instanceof Blob) {
+              this.addFileBlobToForm(form, element, tempKey);
+            } else {
+              // Otherwise, recursively process the element
+              this.convertToFormData(element as NestedRecord, form, tempKey);
+            }
+            index++;
+          }
+        } else {
+          form.append(formKey, String(value)); // Convert primitive types to string
+        }
       }
     }
-    return formData;
-  }
+
+    return form;
+  };
 
   private requestAndUpdateStore(config: WorkerConfig, unsubscribe: () => void) {
     const { url, method, body, headers, credentials, mode, cacheName, mergeExisting = false } = config;
@@ -176,20 +213,20 @@ class ApiRequest {
     const stringifiedCacheName = cacheName.toString().toLocaleLowerCase();
     const subject = this.initializeStoreWithCacheName(stringifiedCacheName);
     if (url && method) {
-      //Is the request a file upload or a regular requst
-      const isFileUpload = containsBlobOrFile(body);
+      //Determine if this is a request for a fileupload or not
+      const isFileUpload = checkProperties(body);
 
       //Dynamically add the content-type, based on whether it's a file upload or not
       const mergedHeaders = {
         ...(headers && headers),
         ...(!isFileUpload && { "Content-Type": "application/json" }),
-        ...(isFileUpload && { "Content-Type": "multipart/form-data" }), //Docs at Mdn say you don't need this, but it wouldn't work without it.  fetch adds "Content-Type": "text/plain"
+        ...(isFileUpload && { "Content-Type": "multipart/form-data" }),
       };
 
       fetch(url, {
         method: method.toUpperCase(),
         headers: !isFileUpload ? mergedHeaders : undefined, //Don't add the headers if it's a file upload
-        body: this.createBody(body, isFileUpload),
+        body: this.convertToFormData(body as NestedRecord),
         credentials,
         mode,
       })

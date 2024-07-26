@@ -19,7 +19,6 @@ export const addToQueue = (
     //task doesn't exist, add to the queue, with a timestamp, in milliseconds.  This will be used when the observable is iterated and time stamps are checked
     taskQueue[stringifiedCacheName] = {
       callback,
-      timeStamp: new Date().getTime(),
     };
   //delete the entry in the queue
   else delete taskQueue[stringifiedCacheName];
@@ -58,7 +57,7 @@ export const ApiWorkerProvider = ({ children }: WorkerProvider) => {
         const { callback } = task;
 
         //Pass the data back to the callback
-        callback(data, stringifiedCacheName);
+        callback(data);
 
         //delete it from the queue
         delete taskQueue[stringifiedCacheName];

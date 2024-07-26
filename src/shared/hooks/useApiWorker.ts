@@ -1,12 +1,12 @@
+import { Dispatch, SetStateAction, useRef, useState } from "react";
+import { isEqual } from "../utils/equalityChecks";
 import { useTaskQueue } from "../providers/ApiWorkerProvider";
-import { Dispatch, SetStateAction, useCallback, useRef, useState } from "react";
 import { QueryConfig } from "../types/types";
+import { useCustomCallback } from "./useCustomCallback";
 
-export const useApiWorker = <T>({
-  requestConfig,
-  queryConfig,
-  returnPromise,
-}: QueryConfig): [T | undefined, () => T extends Promise<unknown> ? T : void] => {
+export const useApiWorker = <T>(
+  apiQueryConfig: QueryConfig,
+): [T | undefined, () => T extends Promise<unknown> ? T : void] => {
   const { addToQueue } = useTaskQueue();
   const [, setData] = useState<number>(0);
 
@@ -18,17 +18,23 @@ export const useApiWorker = <T>({
     dataRef.current = data;
     setData((state: number) => (state += 1));
   });
+  const ApiConfigRef = useRef<QueryConfig | undefined>(undefined);
 
-  const makeRequest = useCallback(
-    (resolve?: (data: Dispatch<SetStateAction<undefined>> | unknown) => void) => {
-      /*     
-      Resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
-      Resolve, will return the data from the api call to the calling function.
-    */
+  //Compare when files are added, if the same config is sent in?
+  if (!isEqual(ApiConfigRef.current, apiQueryConfig)) ApiConfigRef.current = apiQueryConfig; //Keep a ref so that the method makeRequest below, will have the latest config data
 
-      if (queryConfig) {
+  const makeRequest = useCustomCallback(
+    (
+      /*
+        Resolve is passed in when a user has selected to have a promise returend, instead of a function to make a request.
+        Resolve, will return the data from the api call to the calling function.
+      */
+      resolve?: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
+    ) => {
+      if (ApiConfigRef?.current?.queryConfig) {
         //If it's runonce, and the runOnceRef is true, then dont' call the worker, and re-used the data in the hook
-        const runOnce = Boolean(queryConfig.runOnce);
+        const runOnce = Boolean(ApiConfigRef.current.queryConfig.runOnce);
+
         if (runOnceRef.current && runOnce) return;
         else {
           //Let's set runOnceRef to true, but continue processing
@@ -39,8 +45,8 @@ export const useApiWorker = <T>({
         const currentDate = new Date();
 
         /*
-          Is it because it's been less than 5 secconds that the worker isn't called again?
-        */
+      Is it because it's been less than 5 secconds that the worker isn't called again?
+    */
         if (
           !dataRef.current ||
           //If makeRequest is called repeatedly, from re-rendering, we can avoid it by only making calls if it's been 2 seconds, since the last call.
@@ -49,29 +55,35 @@ export const useApiWorker = <T>({
           //Update lastRequestRequestDate
           lastRequestRequestDate.current = new Date();
           //If reset is true, then we don't want to pass a callback.
-          const callback = queryConfig.reset ? undefined : resolve ? resolve : callBackRef.current;
+          const callback = ApiConfigRef.current.queryConfig.reset ? undefined : resolve ? resolve : callBackRef.current;
+
           addToQueue(
-            queryConfig,
-            requestConfig,
+            ApiConfigRef.current.queryConfig,
+            ApiConfigRef.current.requestConfig,
             callback, // resolve ? resolve : callBackRef.current,
           );
 
           if (!callback && Boolean(dataRef.current)) {
             //If a callback isn't passed and there is currently data in dataRef.current, then reset the data and trigger a re-render
             //reset the data here.  callback will be undefined
-            dataRef.current = callback;
+            dataRef.current = undefined;
             //Trigger an update
             setData(0);
           }
         }
 
-        if (queryConfig && typeof queryConfig?.run !== "undefined" && !queryConfig?.run) return;
+        if (
+          ApiConfigRef.current.queryConfig &&
+          typeof ApiConfigRef.current.queryConfig?.run !== "undefined" &&
+          !ApiConfigRef.current.queryConfig?.run
+        )
+          return;
       }
     },
-    [queryConfig, requestConfig, addToQueue],
+    [ApiConfigRef.current, apiQueryConfig],
   );
 
-  const request = returnPromise
+  const request = ApiConfigRef?.current?.returnPromise
     ? () =>
         new Promise((resolve) => {
           makeRequest(resolve); //Pass resolve to replace the use of setData, in order to have data returned from the promise
@@ -79,7 +91,7 @@ export const useApiWorker = <T>({
     : makeRequest;
 
   //If there is no request object it could be a request for data from the cache.  If runAuto is used, it means the app is not using the lazy function
-  if (!requestConfig || queryConfig.runAuto) {
+  if (!ApiConfigRef?.current?.requestConfig || ApiConfigRef?.current?.queryConfig?.runAuto) {
     //Fire off request if requestObject is undefined
     request();
   }

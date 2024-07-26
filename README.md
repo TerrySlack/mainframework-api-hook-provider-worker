@@ -106,48 +106,13 @@ request for Todos in the useEffect now.
 
 ### Examples
 
-### File Uploading
+### File Uploading, post, get
 
-The package can handle file uploading, however the format needs to be flat.
-
-You can add any properties you like, however, when saving, only the id and file property will be used. The store in the worker, will store whatever is returned
-from your api and you can do what you like with this data. Ie, perhaps an array of urls for the images are returned and can be used in a gallery.
-
-If id is not provided, the file.name will be used.
-
-Note: Do not pass a formData object. THe formData object will be created for you. FormData objects cannot be passed to a web worker and
-the code is not built to handle getting properties form the form data object and then recreating it.
-
-You can upload multiple files, by handling the uploading and capturing the uploading files. But ensure that the valid files
-that need to be uploaded, are passed in this format.
-
-```JS | TS
-[
-  {
-    id: "1",  //Id is whatever you want to add
-    file,  //Type File or Blob
-   preview: URL.createObjectURL(file)
-  },
-  {
-    id: "2",,  //Id is whatever you want to add
-    file,  //Type File or Blob
-    preview: URL.createObjectURL(file)
-  },
-]
-
-
- const [savedFilesStatus, saveFilesPostRequest] = useApiWorker({
-    requestConfig: {
-      method: "post",
-      url: "Add your own url",
-      body: validFiles, //This is an array as shown above
-    },
-    queryConfig: {
-      cacheName: "pick a cache name",
-    },
-  });
-
-```
+Note: Do not pass a formData object as they cannot be serialied and passed to a web web worker.
+The formData object will be created for you.
+Note: In dynamically creating the formObject, the id's will come from the parent property names of the object.
+The object passed can have nested properties, including nested File or Blobs and will handle things accordingly.
+Once you have your object created, just make a request, as you would normally do.
 
 ```JS | TS
 import { useEffect } from "react";
@@ -159,15 +124,16 @@ export const App = () => (
 
   const [todos] = useApiWorker({
     requestConfig: {
-      method: "get",
-      url: "https://jsonplaceholder.typicode.com/todos/100",
+      method: "post | patch",
+      url: "/myapi.com", //Replace this with the api you want to use
       headers: {
         "x-api-key":  "add your key here",
       },
+      body://This will be the object you created to handle any uploads and metadata you want to send to an api
     },
     queryConfig: {
-      cacheName: "todos",
-      runAuto: true, //<-- By setting this to true, you don't need to use
+      cacheName: "my-cache-name",  //add a cachename for any returend data from the api
+      runAuto: true, //<-- By setting this to true, you don't need to use the returned method from useApiWorker.   You can also dynamically set this
     },
   });
 
