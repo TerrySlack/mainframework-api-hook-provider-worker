@@ -218,15 +218,14 @@ class ApiRequest {
 
       //Dynamically add the content-type, based on whether it's a file upload or not
       const mergedHeaders = {
-        ...(headers && headers),
-        ...(!isFileUpload && { "Content-Type": "application/json" }),
-        ...(isFileUpload && { "Content-Type": "multipart/form-data" }),
+        ...(headers || {}),
+        "Content-Type": isFileUpload ? "multipart/form-data" : "application/json",
       };
 
       fetch(url, {
         method: method.toUpperCase(),
         headers: !isFileUpload ? mergedHeaders : undefined, //Don't add the headers if it's a file upload
-        body: this.convertToFormData(body as NestedRecord),
+        body: isFileUpload ? this.convertToFormData(body as NestedRecord) : (body as BodyInit),
         credentials,
         mode,
       })
