@@ -29,18 +29,23 @@ export const addToQueue = (
   });
 };
 
-// Create a context for the task queue
 const TaskQueueContext = createContext<QueueContextType>({
   /* eslint-disable @typescript-eslint/no-unused-vars */
-  addToQueue: (
-    _config: ConfigWithId,
-    _requestQueryConfig?: RequestConfig,
-    _?: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
-    /* eslint-enable @typescript-eslint/no-unused-vars */
-  ) => {
-    throw new Error("addToQueue must be implemented");
-  },
+  addToQueue,
 });
+
+// Create a context for the task queue
+// const TaskQueueContext = createContext<QueueContextType>({
+//   /* eslint-disable @typescript-eslint/no-unused-vars */
+//   addToQueue: (
+//     _config: ConfigWithId,
+//     _requestQueryConfig?: RequestConfig,
+//     _?: (data: Dispatch<SetStateAction<undefined>> | unknown) => void,
+//     /* eslint-enable @typescript-eslint/no-unused-vars */
+//   ) => {
+//     throw new Error("addToQueue must be implemented");
+//   },
+// });
 
 // Custom provider component
 export const ApiWorkerProvider = ({ children }: WorkerProvider) => {
