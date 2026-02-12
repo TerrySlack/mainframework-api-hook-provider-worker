@@ -1,3 +1,11 @@
+### ⚠️ Deprecated
+
+**This repository is deprecated and no longer maintained.**
+
+We recommend using the new package instead: [mainframework-apiworker](https://github.com/TerrySlack/mainframework-apiworker)
+
+Please migrate your projects to the new package, as this repository may be removed in the future.
+
 ### A React package, that creates an api worker, provider, hook and store. Move your api calls and store off of the main thread and into a web worker
 
 ### Note: Version 1.x is deprecated. Please review these notes to upgrade
